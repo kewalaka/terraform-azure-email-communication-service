@@ -7,6 +7,12 @@ resource "azurerm_resource_group" "this" {
   name     = "rg-emailsvc-auea-${random_pet.pet.id}"
 }
 
+resource "azurerm_communication_service" "this" {
+  name                = "communicationsvc-auea-${random_pet.pet.id}"
+  resource_group_name = azurerm_resource_group.this.name
+  data_location       = "Australia"
+}
+
 # create the email communication service
 module "email_communication_services" {
   source        = "git::https://github.com/Azure/terraform-azurerm-avm-res-communication-emailservice.git?ref=krbar/initialModuleVersion"
@@ -32,7 +38,7 @@ module "email_communication_services" {
       }
       role_assignments = {
         azure_app_writer = {
-          role_definition_id_or_name = "AzureCommnicationServicesEmailWrite"
+          role_definition_id_or_name = "AzureCommunicationServiceEmailWrite"
           principal_id               = azuread_service_principal.email_service_sp.id
         }
       }
@@ -44,9 +50,22 @@ module "email_communication_services" {
   depends_on = [azapi_resource_action.communication_resource_provider]
 }
 
+resource "azurerm_communication_service_email_domain_association" "this" {
+  for_each                 = module.email_communication_services.domains
+  communication_service_id = azurerm_communication_service.this.id
+  email_service_domain_id  = each.value.resource_id
+}
+
+resource "azurerm_role_assignment" "send_email" {
+  principal_id                     = azuread_service_principal.email_service_sp.id
+  role_definition_id               = azurerm_role_definition.custom_role.id
+  scope                            = azurerm_communication_service.this.id
+  skip_service_principal_aad_check = true
+}
+
 // create a custom role for the Entra application used by the app to communicate with the email communication service
 resource "azurerm_role_definition" "custom_role" {
-  name        = "AzureCommnicationServicesEmailWrite"
+  name        = "AzureCommunicationServiceEmailWrite" # TODO spelling
   scope       = azurerm_resource_group.this.id
   description = "Custom role used by an Entra application to use the Email Communication Service"
 
