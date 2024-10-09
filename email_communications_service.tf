@@ -36,12 +36,6 @@ module "email_communication_services" {
           display_name = "Customer Service"
         }
       }
-      role_assignments = {
-        azure_app_writer = {
-          role_definition_id_or_name = "AzureCommunicationServiceEmailWrite"
-          principal_id               = azuread_service_principal.email_service_sp.id
-        }
-      }
     }
   }
 
